@@ -1,0 +1,13 @@
+
+secure worker:
+
+# Set your backend webhook URL
+npx wrangler secret put BACKEND_VERIFY_URL
+# (Enter value when prompted, e.g., https://api.webletts.app/api/auth/verify-inbound)
+
+# Set your shared secret key for security
+npx wrangler secret put WORKER_SECRET_KEY
+# (Enter a secure random password string)
+
+# Push the worker live to Cloudflare
+npx wrangler deploy

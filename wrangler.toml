@@ -1,0 +1,7 @@
+name = "webletts-auth-parser"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+
+# This binds your email routing rule to this worker
+[email]
+# If you used a specific address like auth@webletts.app, or leave blank if using a catch-all

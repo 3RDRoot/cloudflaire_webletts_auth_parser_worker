@@ -3,6 +3,13 @@ main = "index.js"
 compatibility_date = "2026-10-09"
 compatibility_flags = [ "nodejs_compat" ]
 
+# ...
+[vars]
+BACKEND_VERIFY_URL = "https://api.webletts.app/api/auth/verify-inbound"
+WORKER_SECRET_KEY = "or paste in your .env file in the key input field."
+# ...
+
+
 # This binds your email routing rule to this worker
 [email]
 # Leaving this section empty but declared is valid if you handle routing rules via the Cloudflare Dashboard.

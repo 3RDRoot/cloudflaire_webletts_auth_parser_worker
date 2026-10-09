@@ -1,9 +1,8 @@
 name = "webletts-auth-parser"
 main = "index.js"
 compatibility_date = "2026-10-09"
+compatibility_flags = [ "nodejs_compat" ]
 
 # This binds your email routing rule to this worker
 [email]
-# If you used a specific address like auth@webletts.app, or leave blank if using a catch-all
-
-compatibility_flags = [ "nodejs_compat" ]
+# Leaving this section empty but declared is valid if you handle routing rules via the Cloudflare Dashboard.

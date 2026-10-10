@@ -1,81 +1,80 @@
 import PostalMime from 'postal-mime';
 
-export default {
-  async email(message, env, ctx) {
-    try {
-      // 1. Parse the raw incoming email stream using postal-mime
-      const rawEmail = await readStreamToBuffer(message.raw);
-      const parser = new PostalMime();
-      const emailParsed = await parser.parse(rawEmail);
-
-      const senderEmail = message.from;
-      const emailText = emailParsed.text || '';
-
-      // 2. check mail size 16bytes
-      if (!emailText.trim() || new TextEncoder().encode(emailText).byteLength > 16 * 1024) {
-        message.setReject('Missing or oversized verification email body. Please Start new empty message and send.');
-        return;
-      }
-
-      // 3. send to server
-      const backendResponse = await fetch(env.BACKEND_VERIFY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Worker-Secret': env.WORKER_SECRET_KEY, // Protect your backend endpoint
-        },
-        body: JSON.stringify({
-          text: emailText,
-          sender: senderEmail,
-        }),
-      });
-
-
-        // 4. if error send error email reject to sender with reason
-       if (!backendResponse.ok) {
-        const details = await backendResponse.json().catch(() => ({}));
-      
-        console.error('Backend verification failed', {
-          status: backendResponse.status,
-          reason: details.reason || 'unknown',
+// Keep sender selection explicit: the envelope address is still submitted.
+// A visible From address is diagnostic data, not proof of sender authenticity.
+export function createEmailHandler({ parse = raw => PostalMime.parse(raw), send = (...args) => fetch(...args) } = {}) {
+  return async function email(message, env) {
+    const diagnostics = {
+      eventId: crypto.randomUUID(), envelopeSender: message.from,
+      recipient: message.to, rawBytes: message.rawSize,
+    };
+    let stage = 'configuration';
+    let eventsUrl;
+    const report = async (eventStage, reason, backendStatus) => {
+      if (!eventsUrl) return;
+      try {
+        const response = await send(eventsUrl, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Worker-Secret': env.WORKER_SECRET_KEY },
+          body: JSON.stringify({ ...diagnostics, stage: eventStage, reason, backendStatus }),
+          signal: AbortSignal.timeout(5000),
         });
-      
-        message.setReject(
-          backendResponse.status === 400
-            ? 'Verification failed. Request a new code and send it from the registered email address.'
-            : 'Verification could not be processed. Please try again later.'
-        );
+        if (!response.ok) console.error('Worker diagnostics rejected', response.status, diagnostics.eventId);
+      } catch {
+        // Reporting must not prevent verification or hide the original failure.
+        console.error('Worker diagnostics unavailable', diagnostics.eventId);
+      }
+    };
+    try {
+      const verifyUrl = new URL(env.BACKEND_VERIFY_URL);
+      if (verifyUrl.protocol !== 'https:' || !env.WORKER_SECRET_KEY) throw new Error('Invalid configuration');
+      eventsUrl = new URL('/api/auth/worker-events', verifyUrl).href;
+      if (message.rawSize > 1024 * 1024) {
+        await report('rejected', 'oversized_email');
+        message.setReject('Verification email is too large. Send a new message containing your code.');
         return;
       }
-
-      console.log(`Successfully authenticated token for sender: ${senderEmail}`);
-    } catch (err) {
-      console.error("Error processing inbound email:", err);
-      console.error(
-        "Backend verification failed:",
-        backendResponse.status,
-        await backendResponse.text()
-      );
-      message.setReject("Internal routing error.");
+      stage = 'parse';
+      const parsed = await parse(message.raw);
+      const emailText = parsed.text || '';
+      Object.assign(diagnostics, {
+        headerFrom: parsed.from?.address, forwardedSender: message.from,
+        textBytes: new TextEncoder().encode(emailText).byteLength,
+        hasText: Boolean(emailText.trim()), hasHtml: Boolean(parsed.html),
+      });
+      await report('received');
+      if (!diagnostics.hasText || diagnostics.textBytes > 16 * 1024) {
+        await report('rejected', diagnostics.hasText ? 'oversized_body' : 'empty_body');
+        message.setReject('Missing or oversized verification text. Send a new plain-text message containing your code.');
+        return;
+      }
+      stage = 'network';
+      const response = await send(verifyUrl.href, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Worker-Secret': env.WORKER_SECRET_KEY },
+        body: JSON.stringify({ text: emailText, sender: message.from, diagnostics: { ...diagnostics, stage: 'forwarding' } }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const details = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        await report('rejected', details.reason || 'backend_rejected', response.status);
+        message.setReject(response.status === 400
+          ? 'Verification failed. Request a new code and send it from the registered email address.'
+          : 'Verification could not be processed. Please try again later.');
+        return;
+      }
+      if (details.verified !== true) {
+        await report('failed', 'backend_invalid_response', response.status);
+        message.setReject('Verification server returned an unexpected response. Please try again later.');
+        return;
+      }
+      await report('verified', 'verified', response.status);
+      console.log('Email verified', diagnostics.eventId);
+    } catch {
+      const reason = stage === 'parse' ? 'parse_error' : stage === 'network' ? 'network_error' : 'configuration_error';
+      await report('failed', reason);
+      console.error('Email processing failed', reason, diagnostics.eventId);
+      message.setReject('Internal routing error. Please try again later.');
     }
-  }
-};
-
-// Helper utility to convert the EmailMessage stream to an ArrayBuffer
-async function readStreamToBuffer(stream) {
-  const reader = stream.getReader();
-  const chunks = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  let length = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  let result = new Uint8Array(length);
-  let offset = 0;
-  for (let chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return result.buffer;
+  };
 }
+
+export default { email: createEmailHandler() };

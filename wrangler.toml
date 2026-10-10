@@ -5,7 +5,8 @@ compatibility_flags = [ "nodejs_compat" ]
 
 # ...
 [vars]
-BACKEND_VERIFY_URL = "https://api.webletts.app/api/auth/verify-inbound"
+#BACKEND_VERIFY_URL = "https://api.webletts.app/api/auth/verify-inbound" #use if want
+BACKEND_VERIFY_URL = "https://webletts.app/api/auth/verify-inbound"
 WORKER_SECRET_KEY = "or paste in your .env file in the key input field."
 # ...
 

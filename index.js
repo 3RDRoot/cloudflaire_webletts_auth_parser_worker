@@ -31,13 +31,20 @@ export default {
       });
 
 
-    // 4. if error send error email reject to sender with reason
-     if (!backendResponse.ok) {
-        const reason = backendResponse.status === 400
-          ? 'Verification code is invalid or expired. Request a new code and resend it.'
-          : 'Verification could not be processed. Please try again later.';
+        // 4. if error send error email reject to sender with reason
+       if (!backendResponse.ok) {
+        const details = await backendResponse.json().catch(() => ({}));
       
-        message.setReject(reason);
+        console.error('Backend verification failed', {
+          status: backendResponse.status,
+          reason: details.reason || 'unknown',
+        });
+      
+        message.setReject(
+          backendResponse.status === 400
+            ? 'Verification failed. Request a new code and send it from the registered email address.'
+            : 'Verification could not be processed. Please try again later.'
+        );
         return;
       }
 

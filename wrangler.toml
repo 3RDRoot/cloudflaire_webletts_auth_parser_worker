@@ -1,19 +1,10 @@
 name = "webletts-auth-parser"
 main = "index.js"
 compatibility_date = "2026-10-09"
-compatibility_flags = [ "nodejs_compat" ]
+compatibility_flags = ["nodejs_compat"]
 
-# ...
 [vars]
-#BACKEND_VERIFY_URL = "https://api.webletts.app/api/auth/verify-inbound" #use if want
 BACKEND_VERIFY_URL = "https://webletts.app/api/auth/verify-inbound"
-WORKER_SECRET_KEY = "or paste in your .env file in the key input field."
-# ...
-
-
-# This binds your email routing rule to this worker
-[email]
-# Leaving this section empty but declared is valid if you handle routing rules via the Cloudflare Dashboard.
 
 # Store WORKER_SECRET_KEY using: npx wrangler secret put WORKER_SECRET_KEY
 # Keep the auth@webletts.app -> Worker email routing rule in the dashboard.

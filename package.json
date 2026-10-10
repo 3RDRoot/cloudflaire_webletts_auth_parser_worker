@@ -1,23 +1,14 @@
 {
-  "name": "cloudflaire_webletts_auth_parser_worker",
-  "version": "1.0.0",
-  "description": "email auth interceptor on cloudflair",
-  "homepage": "https://github.com/3RDRoot/cloudflaire_webletts_auth_parser_worker#readme",
-  "bugs": {
-    "url": "https://github.com/3RDRoot/cloudflaire_webletts_auth_parser_worker/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/3RDRoot/cloudflaire_webletts_auth_parser_worker.git"
-  },
-  "license": "ISC",
-  "author": "webletts.app",
-  "type": "commonjs",
-  "main": "index.js",
+  "name": "webletts-auth-parser",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test bin/*.test.js",
+    "test:runtime": "node bin/runtime-smoke.js",
+    "build": "npx wrangler@4.149.0 deploy --dry-run --outdir dist"
   },
   "dependencies": {
-    "postal-mime": "^4.0.5"
+    "mailauth": "7.2.0",
+    "postal-mime": "^2.4.3"
   }
 }

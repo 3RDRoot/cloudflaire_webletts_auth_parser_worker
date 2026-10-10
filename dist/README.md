@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "webletts-auth-parser" generated at 2026-10-10T14:52:43.451Z.

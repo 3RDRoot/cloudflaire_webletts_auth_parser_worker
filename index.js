@@ -9,21 +9,15 @@ export default {
       const emailParsed = await parser.parse(rawEmail);
 
       const senderEmail = message.from;
-      const emailBody = emailParsed.text || '';
+      const emailText = emailParsed.text || '';
 
-      // 2. Extract your unique token from the email body using regex 
-      // (Assuming your tokens match a pattern like 'reg_xxxxx' or alphanumeric strings)
-      const tokenMatch = emailBody.match(/[a-zA-Z0-9_\-]{8,32}/);
-      
-      if (!tokenMatch) {
-        console.log(`No valid token found in email from: ${senderEmail}`);
-        message.setReject("No valid authentication token found in email body.");
+      // 2. check mail size 16bytes
+      if (!emailText.trim() || new TextEncoder().encode(emailText).byteLength > 16 * 1024) {
+        message.setReject('Missing or oversized verification email body. Please Start new empty message and send.');
         return;
       }
 
-      const extractedToken = tokenMatch[0];
-
-      // 3. Securely forward the verified token & sender to your backend server
+      // 3. send to server
       const backendResponse = await fetch(env.BACKEND_VERIFY_URL, {
         method: 'POST',
         headers: {
@@ -31,20 +25,30 @@ export default {
           'X-Worker-Secret': env.WORKER_SECRET_KEY, // Protect your backend endpoint
         },
         body: JSON.stringify({
-          token: extractedToken,
+          text: emailText,
           sender: senderEmail,
         }),
       });
 
-      if (!backendResponse.ok) {
-        console.error(`Backend failed to process token: ${backendResponse.status}`);
-        message.setReject("Authentication failed on server.");
+
+    // 4. if error send error email reject to sender with reason
+     if (!backendResponse.ok) {
+        const reason = backendResponse.status === 400
+          ? 'Verification code is invalid or expired. Request a new code and resend it.'
+          : 'Verification could not be processed. Please try again later.';
+      
+        message.setReject(reason);
         return;
       }
 
       console.log(`Successfully authenticated token for sender: ${senderEmail}`);
     } catch (err) {
       console.error("Error processing inbound email:", err);
+      console.error(
+        "Backend verification failed:",
+        backendResponse.status,
+        await backendResponse.text()
+      );
       message.setReject("Internal routing error.");
     }
   }
